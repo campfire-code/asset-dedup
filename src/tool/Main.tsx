@@ -20,19 +20,74 @@ const isPreview = () => typeof location !== 'undefined' && location.pathname.end
 interface Scan extends ScanResult { groups: Group[]; roots: string[] }
 type Msg = { kind: 'ok' | 'err'; text: string; dir?: string } | null;
 
-function Tile({ a, keep, skipped, distance, same, onKeep }: { a: Asset; keep: boolean; skipped: boolean; distance: number | null; same: boolean; onKeep: () => void }) {
-  const folder = a.path.slice(a.root.length).replace(/^[\\/]/, '').split(/[\\/]/).slice(0, -1).join('/');
+function relFolder(a: Asset) {
+  return a.path.slice(a.root.length).replace(/^[\\/]/, '').split(/[\\/]/).slice(0, -1).join('/');
+}
+
+/** 保留的那张：大图 */
+function KeepCard({ a }: { a: Asset }) {
+  const folder = relFolder(a);
   return (
-    <button className={`ad-tile${keep ? ' keep' : skipped ? '' : ' out'}`} onClick={onKeep} title={`${a.path}\n点击设为保留`}>
-      <span className="ad-img">
-        {a.thumb ? <img src={fileSrc(a.thumb)} alt="" loading="lazy" /> : <Images size={22} />}
-        {!skipped && <span className={`ad-badge ${keep ? 'keep' : 'out'}`}>{keep ? <><Check size={12} />保留</> : <><ArrowRightLeft size={12} />移走</>}</span>}
+    <figure className="ad-keep" title={a.path}>
+      <span className="ad-img big">
+        {a.thumb ? <img src={fileSrc(a.thumb)} alt={`保留：${a.name}`} loading="lazy" /> : <Images size={28} />}
+        <span className="ad-badge keep"><Check size={13} />保留</span>
       </span>
-      <span className="ad-name k-ellipsis">{a.name}</span>
-      <span className="ad-meta k-muted k-num">{a.width}×{a.height} · {formatBytes(a.size)}</span>
-      <span className="ad-meta k-num ad-sim">{keep ? '保留这张' : same ? '与保留的文件完全相同' : distance === 0 ? '画面一致，文件不同' : `相似度 ${similarity(distance ?? 0)}`}</span>
-      {folder && <span className="ad-meta k-muted k-ellipsis">位于 {folder}</span>}
-    </button>
+      <figcaption>
+        <b className="k-ellipsis">{a.name}</b>
+        <span className="k-muted k-num">{a.width}×{a.height} · {formatBytes(a.size)}</span>
+        {folder && <span className="k-muted k-ellipsis">位于 {folder}</span>}
+      </figcaption>
+    </figure>
+  );
+}
+
+/** 将被移走的一张：小图 + 和保留项的差别，点一下改成保留它 */
+function DupRow({ a, skipped, distance, same, onKeep }: { a: Asset; skipped: boolean; distance: number; same: boolean; onKeep: () => void }) {
+  const folder = relFolder(a);
+  return (
+    <li>
+      <button className={`ad-dup${skipped ? ' skipped' : ''}`} onClick={onKeep} title={`${a.path}\n点击改成保留这张`}>
+        <span className="ad-img sm">{a.thumb ? <img src={fileSrc(a.thumb)} alt="" loading="lazy" /> : <Images size={18} />}</span>
+        <span className="ad-dup-t">
+          <b className="k-ellipsis">{a.name}</b>
+          <span className="k-muted k-num k-ellipsis">{a.width}×{a.height} · {formatBytes(a.size)}{folder ? ` · ${folder}` : ''}</span>
+        </span>
+        <span className={`ad-sim ${same ? 'same' : ''}`}>{same ? '完全相同' : distance === 0 ? '画面一致' : `相似 ${similarity(distance)}`}</span>
+        <span className="ad-act">{skipped ? '不处理' : <><ArrowRightLeft size={13} />移走</>}</span>
+      </button>
+    </li>
+  );
+}
+
+/** 空状态示意：三张几乎一样的图 → 留一张，其余进「待删除」 */
+function Illustration() {
+  const Photo = ({ x, y, k }: { x: number; y: number; k?: 'keep' | 'out' }) => (
+    <g className={`ad-ph ${k ?? ''}`}>
+      <rect x={x} y={y} width="74" height="54" rx="6" />
+      <circle cx={x + 52} cy={y + 17} r="7" className="sun" />
+      <path d={`M${x} ${y + 44} L${x + 24} ${y + 24} L${x + 40} ${y + 38} L${x + 52} ${y + 30} L${x + 74} ${y + 46} V${y + 48} Q${x + 74} ${y + 54} ${x + 68} ${y + 54} H${x + 6} Q${x} ${y + 54} ${x} ${y + 48} Z`} className="hill" />
+    </g>
+  );
+  return (
+    <svg className="ad-ill" viewBox="0 0 440 206" role="img" aria-label="三张几乎一样的图片，留下一张，另外两张移到待删除文件夹">
+      <Photo x={30} y={6} />
+      <Photo x={30} y={66} />
+      <Photo x={30} y={126} />
+      <text x="67" y="200" textAnchor="middle" className="cap">近似的图</text>
+      <path d="M118 96 H160 M151 87 L162 96 L151 105" className="arrow" />
+      <text x="140" y="78" textAnchor="middle" className="cap hl">指纹比对</text>
+      <Photo x={184} y={69} k="keep" />
+      <rect x="196" y="61" width="50" height="18" rx="9" className="tag" /><text x="221" y="74" textAnchor="middle" className="tag-t">保留</text>
+      <text x="221" y="200" textAnchor="middle" className="cap">分辨率最高的一张</text>
+      <path d="M278 96 H320 M311 87 L322 96 L311 105" className="arrow" />
+      <g className="ad-folder">
+        <path d="M332 44 H358 L366 54 H430 Q436 54 436 60 V138 Q436 144 430 144 H338 Q332 144 332 138 Z" />
+        <text x="384" y="86" textAnchor="middle" className="fl">待删除</text>
+        <rect x="344" y="98" width="32" height="26" rx="4" className="mini" /><rect x="386" y="98" width="32" height="26" rx="4" className="mini" />
+      </g>
+      <text x="384" y="200" textAnchor="middle" className="cap">只移动，不删除</text>
+    </svg>
   );
 }
 
@@ -136,31 +191,34 @@ export function Main({ ctx }: { ctx?: Ctx }) {
   const ratio = progress[1] ? progress[0] / progress[1] : 0;
   const totalImgs = scan ? scan.assets.length : 0;
 
-  return (
-    <div className="ad">
-      <section className="ad-bar k-panel">
-        <div className="ad-src">
-          <button className="k-btn" disabled={!!busy} onClick={async () => { const p = await pickFolder().catch(() => null); if (p) addSources([p]); }}><FolderSearch size={15} />选择文件夹</button>
-          {sources.length ? (
-            <span className="ad-chips">
-              {sources.map((s) => (
-                <span key={s} className="k-chip ad-chip" title={s}>
-                  <span className="k-ellipsis">{s}</span>
-                  {!busy && <button className="k-icon-btn" aria-label="移除" onClick={() => { setSources(sources.filter((x) => x !== s)); setScan(null); }}><X size={13} /></button>}
-                </span>
-              ))}
-            </span>
-          ) : <span className="k-muted">也可以把文件夹或图片直接拖进窗口</span>}
-        </div>
-        <div className="ad-th">
-          <label className="k-label" htmlFor="ad-th">相似度阈值 <b className="k-num">{threshold}</b></label>
-          <input id="ad-th" type="range" min={0} max={16} step={1} value={threshold} disabled={busy === 'scan'} onChange={(e) => setThreshold(Number(e.target.value))} />
-          <span className="k-help">{thresholdLabel(threshold)}</span>
-        </div>
+  const sourceBar = (
+    <section className="ad-bar">
+      <div className="ad-src">
+        <button className="k-btn" disabled={!!busy} onClick={async () => { const p = await pickFolder().catch(() => null); if (p) addSources([p]); }}><FolderSearch size={15} />选择文件夹</button>
+        {sources.length ? (
+          <span className="ad-chips">
+            {sources.map((s) => (
+              <span key={s} className="k-chip ad-chip" title={s}>
+                <span className="k-ellipsis">{s}</span>
+                {!busy && <button className="k-icon-btn" aria-label="移除" onClick={() => { setSources(sources.filter((x) => x !== s)); setScan(null); }}><X size={13} /></button>}
+              </span>
+            ))}
+          </span>
+        ) : <span className="k-muted">也可以把文件夹或图片直接拖进窗口</span>}
         {busy === 'scan'
           ? <button className="k-btn" onClick={() => abort.current?.abort()}><Square size={14} />停止</button>
           : <button className="k-btn primary" disabled={!sources.length || !!busy} onClick={runScan}><ScanSearch size={15} />开始查重</button>}
-      </section>
+      </div>
+      <div className="ad-th">
+        <label className="k-label" htmlFor="ad-th">相似度阈值 <b className="k-num">{threshold}</b><span className="k-muted">　{thresholdLabel(threshold)}</span></label>
+        <div className="ad-th-row"><small>严格</small><input id="ad-th" type="range" min={0} max={16} step={1} value={threshold} disabled={busy === 'scan'} onChange={(e) => setThreshold(Number(e.target.value))} /><small>宽松</small></div>
+      </div>
+    </section>
+  );
+
+  return (
+    <div className="ad">
+      {sourceBar}
 
       {busy === 'scan' && (
         <div className="ad-prog"><ProgressBar ratio={ratio} label="扫描进度" /><span className="k-muted k-num">正在读取 {progress[0]} / {progress[1]}</span></div>
@@ -174,36 +232,40 @@ export function Main({ ctx }: { ctx?: Ctx }) {
       )}
 
       {!scan && busy !== 'scan' && (
-        <div className={`ad-empty k-panel${hover ? ' hover' : ''}`}>
-          <Images size={34} />
+        <div className={`ad-empty${hover ? ' hover' : ''}`}>
+          <Illustration />
           <b>选一个素材文件夹，找出重复和近似重复的图片</b>
-          <span className="k-muted">用画面指纹比对：改了尺寸、压缩过、轻微调色、加了小角标的也能认出来。<br />重复项只会移到「{TRASH_DIR}」文件夹，不会直接删除。全部在本机完成，不上传。</span>
+          <span className="k-muted">改了尺寸、压缩过、轻微调色、加了小角标的也能认出来。<br />重复项只会移到「{TRASH_DIR}」文件夹，不会直接删除。全部在本机完成，不上传。</span>
         </div>
       )}
 
       {scan && (
         <>
-          <div className="ad-sum">
-            <span className="k-num">扫描 <b>{totalImgs}</b> 张 · 找到 <b>{groups.length}</b> 组重复 · 可移走 <b>{plans.length}</b> 张（约 {formatBytes(freed)}）</span>
-            {scan.failed.length > 0 && <button className="k-link" onClick={() => setShowFailed(!showFailed)}><AlertTriangle size={14} />{scan.failed.length} 张读取失败</button>}
-            <span className="ad-sp" />
-            {confirm ? (
-              <span className="ad-confirm">
-                <span>把 {plans.length} 张移到各自文件夹下的「{TRASH_DIR}」？</span>
-                <button className="k-btn primary" onClick={runMove}>确认移动</button>
-                <button className="k-btn" onClick={() => setConfirm(false)}>取消</button>
-              </span>
-            ) : (
-              <button className="k-btn primary" disabled={!plans.length || !!busy} onClick={() => setConfirm(true)}><ArrowRightLeft size={15} />{busy === 'move' ? '正在移动…' : `把重复项移到「${TRASH_DIR}」`}</button>
-            )}
-          </div>
+          <section className="ad-hero">
+            <div className="ad-big">
+              <small>移走后可释放</small>
+              <b className="k-num">{formatBytes(freed)}</b>
+              <span className="k-num">{plans.length} 张重复图 · {groups.length} 组 · 共扫描 {totalImgs} 张</span>
+            </div>
+            <div className="ad-go">
+              {confirm ? (
+                <>
+                  <span>把 {plans.length} 张移到各自文件夹下的「{TRASH_DIR}」？</span>
+                  <span className="ad-go-btns"><button className="k-btn primary" onClick={runMove}>确认移动</button><button className="k-btn" onClick={() => setConfirm(false)}>取消</button></span>
+                </>
+              ) : (
+                <button className="k-btn primary" disabled={!plans.length || !!busy} onClick={() => setConfirm(true)}><ArrowRightLeft size={15} />{busy === 'move' ? '正在移动…' : `把重复项移到「${TRASH_DIR}」`}</button>
+              )}
+              {scan.failed.length > 0 && <button className="k-link" onClick={() => setShowFailed(!showFailed)}><AlertTriangle size={14} />{scan.failed.length} 张读取失败</button>}
+            </div>
+          </section>
           {showFailed && (
-            <ul className="ad-failed k-panel">
+            <ul className="ad-failed">
               {scan.failed.map((f) => <li key={f.path}><button className="k-link" onClick={() => reveal(f.path)}>{f.name}</button><span className="k-muted">{f.reason}</span></li>)}
             </ul>
           )}
           {groups.length === 0 ? (
-            <div className="ad-empty k-panel"><Check size={30} /><b>没有发现重复图片</b><span className="k-muted">可以把阈值调大一点再看看，阈值越大越宽松。</span></div>
+            <div className="ad-empty"><Check size={30} /><b>没有发现重复图片</b><span className="k-muted">可以把阈值调大一点再看看，阈值越大越宽松。</span></div>
           ) : (
             <div className="ad-groups">
               {groups.map((g, gi) => {
@@ -211,7 +273,7 @@ export function Main({ ctx }: { ctx?: Ctx }) {
                 const keeper = g.members.find((m) => m.id === keepId)!;
                 const skipped = skip.has(gi);
                 return (
-                  <section key={g.members.map((m) => m.id).join()} className={`ad-group k-panel${skipped ? ' skipped' : ''}`}>
+                  <section key={g.members.map((m) => m.id).join()} className={`ad-group${skipped ? ' skipped' : ''}`}>
                     <header className="ad-gh">
                       <b>第 {gi + 1} 组</b>
                       <span className={`ad-kind ${g.exact ? 'exact' : 'near'}`}>{g.exact ? '完全相同' : '近似'}</span>
@@ -221,15 +283,18 @@ export function Main({ ctx }: { ctx?: Ctx }) {
                         {skipped ? <SquareCheck size={15} /> : <Square size={15} />}这组不处理
                       </button>
                     </header>
-                    <div className="ad-tiles">
-                      {g.members.map((m) => (
-                        <Tile key={m.id} a={m} keep={m.id === keepId} skipped={skipped} distance={m.id === keepId ? null : m.content === keeper.content ? 0 : hamming(m.hash, keeper.hash)} same={m.content === keeper.content} onKeep={() => setKeep({ ...keep, [gi]: m.id })} />
-                      ))}
+                    <div className="ad-cmp">
+                      <KeepCard a={keeper} />
+                      <ul className="ad-dups">
+                        {g.members.filter((m) => m.id !== keepId).map((m) => (
+                          <DupRow key={m.id} a={m} skipped={skipped} distance={m.content === keeper.content ? 0 : hamming(m.hash, keeper.hash)} same={m.content === keeper.content} onKeep={() => setKeep({ ...keep, [gi]: m.id })} />
+                        ))}
+                      </ul>
                     </div>
                   </section>
                 );
               })}
-              <p className="k-muted ad-tip"><FolderOpen size={13} /> 每组默认保留分辨率最高的一张，点任意一张可改成保留它。移走的文件放在扫描文件夹下的「{TRASH_DIR}」里，确认无误后再自己删除。</p>
+              <p className="k-muted ad-tip"><FolderOpen size={13} /> 每组默认保留分辨率最高的一张，点右边任意一张可改成保留它。移走的文件放在扫描文件夹下的「{TRASH_DIR}」里，确认无误后再自己删除。</p>
             </div>
           )}
         </>

@@ -2,7 +2,8 @@
 import { fingerprint, groupAssets, type Asset } from './core';
 import { synth, type Pattern, type SynthOpts } from './synth';
 
-const ROOT = '/Users/demo/Pictures/示例素材库';
+// check-zh: 忽略（示例路径，只用于预览页）
+const ROOT = '/Users/小林/图片/示例素材库';
 const LIST: [string, Pattern, number, number, number, SynthOpts?, string?][] = [
   ['示例-山景-封面.jpg', 'mountain', 1920, 1080, 412_000, undefined, 'm'],
   ['示例-山景-封面-副本.jpg', 'mountain', 1920, 1080, 412_000, undefined, 'm'],

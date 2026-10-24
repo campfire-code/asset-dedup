@@ -2,12 +2,13 @@
   "id": "c24",
   "slug": "asset-dedup",
   "name": "素材库查重",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "repo": "campfire-code/asset-dedup",
   "license": "MIT",
   "ui": {
-    "layout": "f",
-    "palette": "violet"
+    "layout": "e",
+    "palette": "violet",
+    "accent": "#9E2AC0"
   },
   "upstream": null
 }
